@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sull Payment v8 • GOD MODE</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+<style>
+:root{
+--accent:#3b82f6;
+--neon:#60a5fa;
+--dark:#020617;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;font-family:Poppins}
+body{
+background:radial-gradient(circle at top,#020617,#000);
+color:white;
+display:flex;
+justify-content:center;
+min-height:100vh;
+overflow:hidden;
+animation:rgb 10s infinite alternate;
+}
+@keyframes rgb{
+0%{filter:hue-rotate(0deg)}
+100%{filter:hue-rotate(40deg)}
+}
+
+/* APP */
+.app{width:100%;max-width:420px;padding:20px;z-index:2}
+
+/* PROFILE */
+.profile{text-align:center;margin:30px 0}
+.avatar{
+width:110px;height:110px;border-radius:50%;
+border:4px solid white;
+object-fit:cover;
+box-shadow:0 0 30px var(--neon);
+}
+.profile h1{margin-top:12px;font-size:28px}
+.profile p{opacity:.8;font-size:14px}
+
+/* BUTTON */
+.payments{display:flex;flex-direction:column;gap:16px}
+.pay-btn{
+background:white;
+color:#111;
+border:none;
+padding:18px;
+border-radius:18px;
+font-weight:600;
+font-size:16px;
+display:flex;
+align-items:center;
+justify-content:center;
+gap:10px;
+cursor:pointer;
+position:relative;
+transition:.3s;
+box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.pay-btn:hover{
+transform:translateY(-4px) scale(1.03);
+box-shadow:0 0 30px var(--neon);
+}
+.pay-btn i{font-size:22px}
+.pay-btn.popular{
+background:linear-gradient(135deg,#fff,#dbeafe);
+}
+.pay-btn small{
+position:absolute;top:8px;right:12px;
+background:var(--accent);
+color:white;font-size:10px;
+padding:3px 8px;border-radius:999px;
+}
+
+/* MODAL */
+.modal{
+position:fixed;inset:0;
+background:rgba(0,0,0,.9);
+display:flex;align-items:center;justify-content:center;
+opacity:0;pointer-events:none;transition:.3s;z-index:10;
+}
+.modal.active{opacity:1;pointer-events:auto}
+.modal-box{
+background:white;color:#111;
+width:100%;max-width:360px;
+border-radius:26px;padding:25px;
+animation:pop .35s ease;
+}
+@keyframes pop{from{transform:scale(.8)}to{transform:scale(1)}}
+.modal h3{text-align:center;margin-bottom:16px}
+
+/* PAYMENT */
+.pay-item{
+background:#f3f4f6;
+padding:15px;border-radius:16px;
+display:flex;justify-content:space-between;align-items:center;
+margin-bottom:15px;
+}
+.copy{
+background:#111;color:white;border:none;
+width:42px;height:42px;border-radius:14px;
+cursor:pointer;
+}
+.copy:active{transform:scale(.9)}
+.qr{
+width:100%;border-radius:16px;
+border:2px solid #e5e7eb;
+}
+
+/* LOADING SCAN */
+.scan{
+height:6px;background:#e5e7eb;
+overflow:hidden;border-radius:999px;margin:10px 0;
+}
+.scan span{
+display:block;height:100%;width:40%;
+background:linear-gradient(90deg,transparent,var(--accent),transparent);
+animation:scan 1.2s infinite;
+}
+@keyframes scan{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+
+/* TOAST */
+.toast{
+position:fixed;bottom:30px;left:50%;
+transform:translateX(-50%);
+background:#111;color:white;
+padding:12px 20px;border-radius:999px;
+opacity:0;transition:.3s;
+box-shadow:0 0 20px var(--neon);
+z-index:99;
+}
+.toast.show{opacity:1}
+
+/* BLUR SECURITY */
+body.blur *{filter:blur(6px)}
+</style>
+</head>
+
+<body>
+
+<audio id="clickSound" src="https://assets.mixkit.co/sfx/preview/mixkit-select-click-1109.mp3"></audio>
+
+<div class="app">
+<div class="profile">
+<h1>Sull</h1>
+<p>Pembayaran aman • cepat • terpercaya</p>
+</div>
+
+<div class="payments">
+<button class="pay-btn popular" onclick="openModal('QRIS')">
+<i class="ri-qr-scan-line"></i> QRIS
+<small>Paling Populer</small>
+</button>
+
+<button class="pay-btn" onclick="openModal('DANA')">
+<i class="ri-wallet-3-line"></i> DANA
+</button>
+
+<button class="pay-btn" onclick="openModal('PULSA')">
+<i class="ri-phone-line"></i> Pulsa
+</button>
+</div>
+</div>
+
+<div class="modal" id="modal">
+<div class="modal-box" id="modalContent"></div>
+</div>
+
+<div class="toast" id="toast">Nomor disalin • WA dibuka</div>
+
+<script>
+/* === SECURITY === */
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{
+if(e.key==='F12'||(e.ctrlKey&&e.shiftKey))e.preventDefault();
+});
+document.addEventListener('visibilitychange',()=>{
+document.body.classList.toggle('blur',document.hidden);
+});
+
+/* === LOG === */
+let logs=JSON.parse(localStorage.getItem('trxLog'))||[];
+function addLog(m){logs.push({m,time:new Date().toLocaleTimeString()});
+localStorage.setItem('trxLog',JSON.stringify(logs));}
+
+/* === PAYMENT === */
+const modal=document.getElementById('modal');
+const modalContent=document.getElementById('modalContent');
+const sound=document.getElementById('clickSound');
+const toast=document.getElementById('toast');
+const adminWA='6288200621489';
+
+function openModal(type){
+sound.play();
+addLog('Buka '+type);
+let body='';
+if(type==='QRIS'){
+body=`
+<h3>QRIS PAYMENT</h3>
+<img src="https://ibb.co.com/j9pqhL3x" class="qr">
+<div class="scan"><span></span></div>
+<p style="font-size:13px;text-align:center">Scan QRIS semua bank & e-wallet</p>
+<button class="pay-btn" onclick="closeModal()">Selesai</button>`;
+}
+if(type==='DANA'){
+body=`
+<h3>DANA</h3>
+<div class="pay-item">
+<div><b>DANA</b><div id="num">0882003232638</div></div>
+<button class="copy" onclick="copyPay('${type}')">
+<i class="ri-file-copy-line"></i>
+</button>
+</div>
+<button class="pay-btn" onclick="closeModal()">Selesai</button>`;
+}
+if(type==='PULSA'){
+body=`
+<h3>PULSA</h3>
+<div class="pay-item">
+<div><b>Pulsa All Operator</b><div id="num">6285645078263</div></div>
+<button class="copy" onclick="copyPay('${type}')">
+<i class="ri-file-copy-line"></i>
+</button>
+</div>
+<button class="pay-btn" onclick="closeModal()">Selesai</button>`;
+}
+modalContent.innerHTML=body;
+modal.classList.add('active');
+}
+
+function closeModal(){modal.classList.remove('active')}
+
+function copyPay(method){
+navigator.clipboard.writeText(document.getElementById('num').innerText);
+addLog('Copy '+method);
+toast.classList.add('show');
+setTimeout(()=>toast.classList.remove('show'),2000);
+setTimeout(()=>{
+window.open(`https://wa.me/${adminWA}?text=Halo Admin,%20saya%20sudah%20transfer%20via%20${method}`, '_blank');
+},700);
+}
+</script>
+
+</body>
+</html>
